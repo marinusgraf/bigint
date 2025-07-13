@@ -9,7 +9,7 @@ struct bigint {
 
   bigint() {}
 
-  bigint (const std::vector<uint64_t>& digits, int sign) : digits(digits) ,sign(sign) {}
+  bigint (const std::vector<uint64_t>& digits, int sign) : digits(digits), sign(sign) {}
 
   bigint (uint64_t value, int sign) {
     if (value == 0 && sign != 0 || value != 0 && sign == 0)
@@ -163,8 +163,4 @@ struct bigint {
   }
 };
 
-int main() {
-  bigint a(-1, 1);
-  a >>= 64; 
-  std::cout << std::hex << a[2] << "|" << a[1] << "|" << a[0] << std::endl;
-}
+

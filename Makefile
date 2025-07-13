@@ -1,2 +1,2 @@
 all:
-	clang++ -g -o bigint bigint.cpp
+	clang++ -g -o test test.cpp bigint.cpp
