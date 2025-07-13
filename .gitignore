@@ -1,2 +1,4 @@
 *.dSYM
 bigint
+test.*
+test
