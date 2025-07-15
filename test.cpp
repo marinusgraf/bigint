@@ -1,7 +1,9 @@
 #include "bigint.cpp"
 
 int main() {
-  bigint a(-1, 1);
-  a >>= 64; 
-  std::cout << std::hex << a[2] << "|" << a[1] << "|" << a[0] << std::endl;
+    bigint a(-1, 1);
+    bigint b(1, 1);
+    std::cout << std::hex << a[1] << "|" << a[0] << std::endl;
+    a += b;
+    std::cout << std::hex << a[1] << "|" << a[0] << std::endl;
 }

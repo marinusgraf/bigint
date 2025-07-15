@@ -12,16 +12,21 @@ struct bigint {
   bigint (const std::vector<uint64_t>& digits, int sign) : digits(digits), sign(sign) {}
 
   bigint (uint64_t value, int sign) {
-    if (value == 0 && sign != 0 || value != 0 && sign == 0)
-      throw -1;
-    this->sign = sign;
-    digits = std::vector<uint64_t>(1, value);
+    if (value == 0 || sign == 0) {
+      sign = 0;
+      digits = std::vector<uint64_t>();
+    } else {
+      this->sign = sign;
+      digits = std::vector<uint64_t>(1, value);
+    }
   }
 
   void remove_leading_zeros () {
-    while (digits[digits.size() - 1] == 0) {
+    while (digits.size() > 0 and digits[digits.size() - 1] == 0) {
       digits.pop_back();
     }
+    if (size() == 0)
+      sign = 0;
   }
 
   uint64_t& operator[] (size_t idx) {
@@ -83,12 +88,12 @@ struct bigint {
   }
   
   friend bool operator==(const bigint& l, const uint64_t& r) {
-    if (l.size() == 0) {
-      return r == 0;
-    }
-    if (l.size() == 1) {
+    if (l.size() == 0) 
+      return r == 0 and l.sign == 0;
+    if (r == 0) 
+      return l.size() == 0 and l.sign == 0; 
+    if (l.size() == 1) 
       return l[0] == r;
-    }
     if (l[0] != r) {
       return false;
     }
@@ -148,7 +153,7 @@ struct bigint {
     for (size_t i = 0; i < result.size(); ++i) {
       result[i] = (*this)[i + nb_64_shifts];
     }
-    if (nb_bit_shifts) {
+    if (nb_bit_shifts > 0) {
       uint64_t bottom_bits_mask = (uint64_t) -1 >> (64 - nb_bit_shifts);
       size_t i = 0;
       for (; i < result.size() - 1; ++i) {
@@ -161,6 +166,54 @@ struct bigint {
     *this = result;
     return *this;
   }
+  friend bigint operator>>(bigint& l, uint32_t n) {
+    l <<= n;
+    return l;
+  }
+
+  bigint& operator+=(bigint& r) {
+    if (sign == 0)
+      return r;
+    if (r.sign == 0)
+      return *this;
+    if (sign == 1 and r.sign == -1)
+      return *this -= r;
+    if (sign == -1 and r.sign == 1)
+      return r -= *this;
+    size_t max_size = std::max(size(), r.size());
+    uint64_t carry = 0;
+    size_t i;
+    bigint result(std::vector<uint64_t>(max_size + 1, 0), sign);
+    for (i = 0; i < max_size; ++i) {
+      if (i >= size()) {
+        result[i] = r[i] + carry;
+        carry = result[i] < r[i] ? 1 : 0;
+      } else if (i >= r.size()) {
+        result[i] = (*this)[i] + carry;
+        carry = result[i] < (*this)[i] ? 1 : 0;
+      } else { 
+        result[i] = (*this)[i] + r[i] + carry;
+        carry = result[i] < r[i] ? 1 : 0; //set carry if overflow    
+      }
+    }
+    if (carry == 1) {
+      result[i] = 1;
+    } else {
+      result.digits.pop_back();
+    }
+    *this = result;
+    return *this; 
+  }
+
+  friend bigint operator+(bigint& l, bigint& r) {} 
+
+  bigint& operator-=(bigint& r) {}
+
+  friend bigint operator-(bigint& l, bigint &r) {}
+
 };
 
 
+const bigint ZERO(std::vector<uint64_t>(), 0);
+
+const bigint ONE(std::vector<uint64_t>(1, 1), 1);
