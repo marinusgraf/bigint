@@ -6,12 +6,24 @@ bigint ONE(1, 1);
 
 bigint::bigint() {}
 
-bigint::bigint (const std::vector<uint64_t>& digits, int sign) : digits(digits), sign(sign) {}
+bigint::bigint (const std::vector<uint64_t>& digits, int sign) : digits(digits), sign(sign) {
+  remove_leading_zeros();
+}
+
+bigint::bigint(int64_t value) {
+  int sign; 
+  if (value < 0) {
+    value = -value;
+    sign = -1;
+  } else {
+    sign = 1;
+  }
+  *this = bigint((uint64_t)value, sign);
+}
 
 bigint::bigint (uint64_t value, int sign) {
   if (value == 0 || sign == 0) {
-    this->sign = 0;
-    this->digits = std::vector<uint64_t>();
+    *this = ZERO;
   } else {
     this->sign = sign;
     this->digits = std::vector<uint64_t>(1, value);
@@ -46,7 +58,7 @@ bigint& bigint::operator<<=(const uint32_t n) {
   size_t nb_64_shifts = n / 64;
   size_t nb_bit_shifts = n % 64;
   size_t new_bigint_size = lhs.size() + nb_64_shifts;
-  bigint result{std::vector<uint64_t>{new_bigint_size + 1, 0}, 0};
+  bigint result(std::vector<uint64_t>(new_bigint_size + 1, 0), lhs.sign);
   for (size_t i = 0; i < size(); ++i) {
     result[i + nb_64_shifts] = lhs[i];
   }
@@ -57,11 +69,10 @@ bigint& bigint::operator<<=(const uint32_t n) {
       result[i - 1] <<= nb_bit_shifts;
     }
   }
+  *this = result;
   remove_leading_zeros();
-  lhs = result;
-  return lhs;
+  return *this;
 }
-
 
 bigint& bigint::operator>>=(const uint32_t n) {
   bigint& lhs = *this;
@@ -89,9 +100,9 @@ bigint& bigint::operator>>=(const uint32_t n) {
     }
     result[i] >>= nb_bit_shifts;
   }
+  *this = result; 
   remove_leading_zeros();
-  lhs = result;
-  return lhs;
+  return *this;
 }
 
 bigint& bigint::operator+=(const bigint& rhs) {
@@ -130,8 +141,8 @@ bigint& bigint::operator+=(const bigint& rhs) {
   } else {
     result.remove_leading_zeros();
   }
-  lhs = result;
-  return lhs; 
+  *this = result;
+  return *this;
 }
 
 bigint& bigint::operator-=(const bigint& rhs) {
@@ -191,6 +202,84 @@ bigint& bigint::operator-=(const bigint& rhs) {
 }
 
 bigint& bigint::operator*=(const bigint& rhs) {
+  bigint lhs = *this;
+  if (lhs.sign == 0 or rhs.sign == 0) {
+    *this = ZERO;
+    return *this;
+  }
+  if (lhs == ONE) {
+    *this = rhs;
+    return *this;
+  }
+  if (lhs == -ONE) {
+    *this = -rhs;
+    return *this;
+  }
+  if (rhs == ONE) {
+    return *this;
+  }
+  if (rhs == -ONE) {
+    *this = -(*this);
+    return *this;
+  }
+  if (lhs.size() == 1 and rhs.size() == 1) {
+    *this = mul(lhs[0], rhs[0], lhs.sign * rhs.sign);
+    return *this;
+  }
+  size_t max_operand_size = std::max(lhs.size(), rhs.size());
+  size_t next_even_number = max_operand_size % 2 == 0 ? max_operand_size : max_operand_size + 1;
+  bigint lhs_lo, lhs_hi, rhs_lo, rhs_hi;
+  split(lhs, next_even_number, lhs_lo, lhs_hi); 
+  split(rhs, next_even_number, rhs_lo, rhs_hi); 
+  bigint lhs_hi_rhs_hi = lhs_hi * rhs_hi;
+  bigint lhs_lo_rhs_lo = lhs_lo * rhs_lo;
+  bigint lhs_rhs_mixed = ((lhs_hi + lhs_lo) * (rhs_hi + rhs_lo)) - (lhs_hi_rhs_hi + lhs_lo_rhs_lo);
+  lhs_hi_rhs_hi <<= 64 * next_even_number;
+  lhs_rhs_mixed <<= 32 * next_even_number; 
+  *this = lhs_hi_rhs_hi + lhs_rhs_mixed + lhs_lo_rhs_lo;
+  return *this;
+}
+
+void split(const bigint& x, size_t n, bigint& x_lo, bigint& x_hi) {
+  size_t k = n / 2;
+  if (x.size() > k) {
+    x_lo = bigint(std::vector<uint64_t>(k, 0), x.sign);
+    x_hi = bigint(std::vector<uint64_t>(x.size() - k, 0), x.sign);
+    for (size_t idx = 0; idx < k; ++idx) 
+      x_lo[idx] = x[idx];
+    for (size_t idx = 0; idx + k < x.size(); ++idx)
+      x_hi[idx] = x[idx + k]; 
+  } else {
+    x_lo = x;
+    x_hi = ZERO;
+  }
+  x_lo.remove_leading_zeros();
+
+}
+bigint mul(uint64_t lhs, uint64_t rhs, int result_sign) {
+  bigint result(std::vector<uint64_t>(2, 0), result_sign);
+  if (lhs == 0 or rhs == 0)
+    return result;
+  if (lhs == 1) {
+    result[0] = rhs;
+    return result;
+  }
+  if (rhs == 1) {
+    result[0] = lhs;
+    return result;
+  }
+  uint64_t x_lo, x_hi, y_lo, y_hi;
+  x_lo = (lhs << 32) >> 32;
+  y_lo = (rhs << 32) >> 32;
+  x_hi = lhs >> 32;
+  y_hi = rhs >> 32;
+
+  bigint x_hi_y_hi = bigint(x_hi * y_hi, result_sign) << 64;
+  bigint x_lo_y_lo = bigint(x_lo * y_lo, result_sign);
+  bigint x_lo_y_hi = bigint(x_lo * y_hi, result_sign) << 32;
+  bigint x_hi_y_lo = bigint(x_hi * y_lo, result_sign) << 32;
+  result += x_hi_y_hi + x_lo_y_lo + x_lo_y_hi + x_hi_y_lo;
+  return result;
 }
 
 bool operator==(const bigint& lhs, const bigint& rhs) {
@@ -258,9 +347,15 @@ bigint operator-(const bigint& rhs) {
   return result;
 }
 
-bigint operator-(bigint& lhs, bigint &rhs) {
+bigint operator-(const bigint& lhs, const bigint &rhs) {
   bigint result = lhs;
   result -= rhs;
+  return result;
+}
+
+bigint operator*(const bigint& lhs, const bigint& rhs) {
+  bigint result = lhs;
+  result *= rhs;
   return result;
 }
 
