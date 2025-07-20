@@ -6,7 +6,7 @@ bigint ONE(1, 1);
 
 bigint::bigint() {}
 
-bigint::bigint (const std::vector<uint32_t>& digits, int sign) : sign(sign) {
+bigint::bigint (const std::vector<uint8_t>& digits, int sign) : sign(sign) {
   for (size_t idx = 0; idx < digits.size(); ++idx) {
     assert(digits[idx] < radix);
   }
@@ -32,7 +32,7 @@ bigint::bigint (uint64_t value, int sign) {
     *this = ZERO;
   } else {
     sign = sign;
-    digits = std::vector<uint32_t>(20, 0);
+    digits = std::vector<uint8_t>(20, 0);
     for (size_t idx = 0; value != 0; ++idx) {
       digits[idx] = value % radix;
       value /= radix; 
@@ -50,11 +50,11 @@ void bigint::remove_leading_zeros () {
     sign = 0;
 }
 
-uint32_t& bigint::operator[] (size_t idx) {
+uint8_t& bigint::operator[] (size_t idx) {
   return this->digits[idx];
 } 
 
-const uint32_t& bigint::operator[] (size_t idx) const {
+const uint8_t& bigint::operator[] (size_t idx) const {
   return this->digits[idx];
 }
 
@@ -67,7 +67,7 @@ bigint& bigint::operator<<=(size_t n) {
   if (n == 0 || lhs.sign == 0) 
     return lhs;
   
-  std::vector<uint32_t> result(lhs.size() + n, 0);
+  std::vector<uint8_t> result(lhs.size() + n, 0);
   for (size_t i = 0; i < size(); ++i) {
     result[i + n] = lhs[i];
   }
@@ -83,7 +83,7 @@ bigint& bigint::operator>>=(size_t n) {
     lhs = bigint(0, 0);
     return lhs;
   }
-  std::vector<uint32_t> result(lhs.size() - n, 0);
+  std::vector<uint8_t> result(lhs.size() - n, 0);
   for (size_t i = 0; i < result.size(); ++i) {
     result[i] = lhs[i + n];
   }
@@ -115,9 +115,9 @@ bigint& bigint::operator+=(const bigint& rhs) {
   
   size_t max_size = std::max(lhs.size(), rhs.size());
   size_t min_size = std::min(lhs.size(), rhs.size());
-  uint32_t carry = 0;
+  uint8_t carry = 0;
   size_t i;
-  std::vector<uint32_t> result(max_size + 1, 0);
+  std::vector<uint8_t> result(max_size + 1, 0);
 
   for (i = 0; i < min_size; ++i) {
     result[i] = (lhs[i] + rhs[i] + carry) % radix;
@@ -160,9 +160,9 @@ bigint& bigint::operator-=(const bigint& rhs) {
     minuend = rhs;
     subtrahend = lhs;
   }
-  std::vector<uint32_t> result(minuend.size(), 0); 
+  std::vector<uint8_t> result(minuend.size(), 0); 
   size_t idx;
-  uint32_t borrow = 0;
+  uint8_t borrow = 0;
   for (idx = 0; idx < subtrahend.size(); ++idx) {
     if (minuend[idx] < subtrahend[idx] + borrow) {
       result[idx] = (minuend[idx] + radix) - (subtrahend[idx] + borrow);
@@ -182,7 +182,7 @@ bigint& bigint::operator-=(const bigint& rhs) {
     }
     assert(result[idx] < radix);
   }
-  uint32_t result_sign = minuend.sign;
+  uint8_t result_sign = minuend.sign;
   if (lhs_greater_rhs and both_operands_negative) 
     result_sign = -sign;
   if (!lhs_greater_rhs and both_operands_positive)
@@ -213,7 +213,7 @@ bigint& bigint::operator*=(const bigint& rhs) {
     return lhs;
   }
   if (lhs.size() == 1 and rhs.size() == 1) {
-    lhs = bigint((uint64_t)rhs[0] * (uint64_t)lhs[0], rhs.sign * lhs.sign);
+    lhs = bigint((uint16_t)rhs[0] * (uint64_t)lhs[0], rhs.sign * lhs.sign);
     return lhs;
   }
   size_t max_operand_size = std::max(lhs.size(), rhs.size());
@@ -233,8 +233,8 @@ bigint& bigint::operator*=(const bigint& rhs) {
 void split(const bigint& x, size_t n, bigint& x_lo, bigint& x_hi) {
   size_t k = n / 2;
   if (x.size() > k) {
-    std::vector<uint32_t> x_lo_digits(k, 0);
-    std::vector<uint32_t> x_hi_digits(x.size() - k);
+    std::vector<uint8_t> x_lo_digits(k, 0);
+    std::vector<uint8_t> x_hi_digits(x.size() - k);
     for (size_t idx = 0; idx < k; ++idx) {
       x_lo_digits[idx] = x[idx];
       assert(x_lo_digits[idx] < radix);
@@ -250,7 +250,76 @@ void split(const bigint& x, size_t n, bigint& x_lo, bigint& x_hi) {
     x_hi = ZERO;
     x_lo.remove_leading_zeros();
   }
+}
 
+bigint& bigint::operator/=(const bigint& rhs) {
+  bigint& lhs = *this;
+  bigint quotient, remainder;
+  div(lhs, rhs, quotient, remainder);
+  lhs = quotient;
+  return lhs;
+}
+
+bigint& bigint::operator%=(const bigint& rhs) {
+  bigint& lhs = *this;
+  bigint quotient, remainder;
+  uint16_t normalization_factor = div(lhs, rhs, quotient, remainder);
+  remainder /= normalization_factor;
+  lhs = remainder;
+  return lhs;
+}
+
+uint16_t div(bigint lhs, bigint rhs, bigint& quotient, bigint& remainder) {
+  if (lhs.sign == 0) {
+    quotient = ZERO;
+    remainder = ZERO;
+    return 1;
+  }
+  if (lhs < rhs) {
+    quotient = ZERO;
+    remainder = rhs;
+    return 1;
+  }
+  if (lhs == rhs) {
+    quotient = ONE;
+    remainder = ZERO;
+    return 1;
+  }
+  int8_t sign = lhs.sign * rhs.sign;
+  if (rhs.size() == 1 and lhs.size() == 1) {
+   quotient = bigint(lhs[0] / rhs[0], sign); 
+   remainder = bigint(lhs[0] %  rhs[0], sign);
+   return 1;
+  }
+  uint16_t normalization_factor = 1;
+  if (rhs[rhs.size() - 1] < (radix >> 1)) {
+    normalization_factor = radix / (rhs[rhs.size() - 1] + 1);
+    rhs *= normalization_factor;
+    lhs *= normalization_factor;
+  }
+  size_t n = rhs.size();
+  size_t m = lhs.size() - rhs.size() - 1;
+  uint16_t divisor = rhs[n-1];
+  uint16_t dividend;
+  uint8_t q, r;
+  std::vector<uint8_t> result(m + 1, 0);
+  for (size_t j = m; j != -1; --j) {
+    dividend = ((uint16_t)lhs[n + j] * radix) + (uint16_t)lhs[n + j - 1];
+    q = dividend / divisor;
+    r = dividend % divisor;
+    if (n > 1) {
+      while (q >= radix or ((q * rhs[n-2]) > ((radix * r) + lhs[n + j - 2]))) {
+         q -= 1;
+         r += rhs[n-1];
+         if (r >= radix) break;
+      }
+    }
+    lhs -= (q * rhs) << j; 
+    result[j] = q;
+  }
+  quotient = bigint(result, sign);
+  remainder = lhs;
+  return normalization_factor;
 }
 
 bool operator==(const bigint& lhs, const bigint& rhs) {
@@ -274,6 +343,8 @@ std::strong_ordering operator<=>(const bigint& lhs, const bigint& rhs) {
     return std::strong_ordering::equivalent;
   if (lhs.sign != rhs.sign) 
     return lhs.sign <=> rhs.sign;
+  if (lhs.size() == 1 and rhs.size() == 1)
+    return std::strong_ordering::equivalent;
   bool both_operands_positive = lhs.sign == 1 and rhs.sign == 1;
   bool both_operands_negative = lhs.sign == -1 and rhs.sign == -1;
 
@@ -291,7 +362,6 @@ std::strong_ordering operator<=>(const bigint& lhs, const bigint& rhs) {
     if (both_operands_negative)
       return rhs[i] <=> lhs[i];
   }
-  throw -1;
 }
 
 bigint operator>>(const bigint& lhs, size_t n) {
@@ -339,10 +409,9 @@ std::ostream& operator<<(std::ostream& os, const bigint& rhs)
     if (rhs.sign == -1) 
       os << "-";
     assert(rhs.size() >= 1);
-    os << rhs[rhs.size() - 1];
+    os << unsigned(rhs[rhs.size() - 1]);
     for (size_t idx = rhs.size() - 2; idx != -1; --idx) {
-      os << std::format("{:09}", rhs[idx]);
+      os << std::format("{:02}", unsigned(rhs[idx]));
     }
-    os << std::format("{:09}", rhs[0]) << std::endl;
     return os;
 }
