@@ -291,12 +291,19 @@ uint16_t div(bigint lhs, bigint rhs, bigint& quotient, bigint& remainder) {
    remainder = bigint(lhs[0] %  rhs[0], sign);
    return 1;
   }
+  if (rhs.size() == 1) {
+    short_div(lhs, rhs, quotient, remainder);
+    return 1;
+  }
   uint16_t normalization_factor = 1;
+  size_t lhs_size_pre_norm = lhs.size();
   if (rhs[rhs.size() - 1] < (radix >> 1)) {
     normalization_factor = radix / (rhs[rhs.size() - 1] + 1);
     rhs *= normalization_factor;
     lhs *= normalization_factor;
   }
+  if (normalization_factor == 1 or (lhs.size() == rhs.size()))
+    lhs.digits.push_back(0);
   size_t n = rhs.size();
   size_t m = lhs.size() - rhs.size() - 1;
   uint16_t divisor = rhs[n-1];
@@ -307,19 +314,37 @@ uint16_t div(bigint lhs, bigint rhs, bigint& quotient, bigint& remainder) {
     dividend = ((uint16_t)lhs[n + j] * radix) + (uint16_t)lhs[n + j - 1];
     q = dividend / divisor;
     r = dividend % divisor;
-    if (n > 1) {
-      while (q >= radix or ((q * rhs[n-2]) > ((radix * r) + lhs[n + j - 2]))) {
-         q -= 1;
-         r += rhs[n-1];
-         if (r >= radix) break;
-      }
+    while (q >= radix or ((q * rhs[n-2]) > ((radix * r) + lhs[n + j - 2]))) {
+       q -= 1;
+       r += rhs[n-1];
     }
     lhs -= (q * rhs) << j; 
+    if (lhs.sign == -1) {
+      --q;
+      lhs += rhs;
+    }
     result[j] = q;
+    if (lhs == ZERO) break;
   }
   quotient = bigint(result, sign);
   remainder = lhs;
   return normalization_factor;
+}
+
+void short_div(bigint& lhs, bigint& rhs, bigint& quotient, bigint& remainder) {
+  assert(rhs.size() == 1);
+  uint8_t divisor = rhs[0];
+  size_t n = lhs.size();
+  std::vector<uint8_t> result(n, 0);
+  uint64_t r = 0;
+  uint16_t cur;
+  for (size_t j = n - 1; j != -1; --j) {
+    cur = (lhs[j] + (r * radix)); 
+    result[j] = cur / divisor;
+    r = cur % divisor; 
+  }
+  quotient = bigint(result, lhs.sign * rhs.sign);
+  remainder = bigint(r, lhs.sign * rhs.sign);
 }
 
 bool operator==(const bigint& lhs, const bigint& rhs) {
@@ -343,8 +368,7 @@ std::strong_ordering operator<=>(const bigint& lhs, const bigint& rhs) {
     return std::strong_ordering::equivalent;
   if (lhs.sign != rhs.sign) 
     return lhs.sign <=> rhs.sign;
-  if (lhs.size() == 1 and rhs.size() == 1)
-    return std::strong_ordering::equivalent;
+  
   bool both_operands_positive = lhs.sign == 1 and rhs.sign == 1;
   bool both_operands_negative = lhs.sign == -1 and rhs.sign == -1;
 
@@ -354,7 +378,9 @@ std::strong_ordering operator<=>(const bigint& lhs, const bigint& rhs) {
     if (both_operands_negative)
       return rhs.size() <=> rhs.size();
   }
-
+  if (lhs.size() == 1 and rhs.size() == 1)
+      return lhs[0] <=> rhs[0];
+  
   for (size_t i = lhs.size() - 1; i != -1; --i) {
     if (lhs[i] == rhs[i]) continue;
     if (both_operands_positive)
@@ -362,6 +388,7 @@ std::strong_ordering operator<=>(const bigint& lhs, const bigint& rhs) {
     if (both_operands_negative)
       return rhs[i] <=> lhs[i];
   }
+  return std::strong_ordering::equivalent;
 }
 
 bigint operator>>(const bigint& lhs, size_t n) {
@@ -397,6 +424,12 @@ bigint operator-(const bigint& lhs, const bigint &rhs) {
 bigint operator*(const bigint& lhs, const bigint& rhs) {
   bigint result = lhs;
   result *= rhs;
+  return result;
+}
+
+bigint operator/(const bigint& lhs, const bigint& rhs) {
+  bigint result = lhs;
+  result /= rhs;
   return result;
 }
 

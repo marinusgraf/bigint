@@ -62,8 +62,12 @@ bigint operator-(const bigint& lhs, const bigint& rhs);
 
 bigint operator*(const bigint& lhs, const bigint& rhs);
 
+bigint operator/(const bigint& lhs, const bigint& rhs);
+
 std::ostream& operator<<(std::ostream& os, const bigint& rhs);
 
 void split(const bigint& x, size_t n, bigint& x_lo, bigint& x_hi); 
 
 uint16_t div(bigint lhs, bigint rhs, bigint& quotient, bigint& remainder);
+
+void short_div(bigint& lhs, bigint& rhs, bigint& quotient, bigint& remainder);
