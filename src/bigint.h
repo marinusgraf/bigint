@@ -14,17 +14,17 @@ struct bigint {
 
   bigint();
 
-  bigint (const std::vector<uint8_t>&, int sign);
+  bigint(const std::vector<uint8_t>&, int sign);
 
   bigint(int64_t value);
 
-  bigint (uint64_t value, int sign);
+  bigint(uint64_t value, int sign);
  
   void remove_leading_zeros (); 
 
-  uint8_t& operator[] (size_t idx);
+  uint8_t& operator[](size_t idx);
 
-  const uint8_t& operator[] (size_t idx) const;
+  const uint8_t& operator[](size_t idx) const;
 
   size_t size() const;
 
@@ -70,4 +70,6 @@ void split(const bigint& x, size_t n, bigint& x_lo, bigint& x_hi);
 
 uint16_t div(bigint lhs, bigint rhs, bigint& quotient, bigint& remainder);
 
-void short_div(bigint& lhs, bigint& rhs, bigint& quotient, bigint& remainder);
+bigint abs(bigint x);
+
+void short_div(bigint& lhs, bigint& rhs, bigint& quotient, bigint& remainder, int8_t sign);

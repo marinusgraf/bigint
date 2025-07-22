@@ -1,12 +1,12 @@
 #include "bigint.h"
 
-bigint ZERO(0, 0);
+const bigint ZERO(0, 0);
 
-bigint ONE(1, 1);
+const bigint ONE(1, 1);
 
 bigint::bigint() {}
 
-bigint::bigint (const std::vector<uint8_t>& digits, int sign) : sign(sign) {
+bigint::bigint(const std::vector<uint8_t>& digits, int sign) : sign(sign) {
   for (size_t idx = 0; idx < digits.size(); ++idx) {
     assert(digits[idx] < radix);
   }
@@ -27,7 +27,7 @@ bigint::bigint(int64_t value) {
   *this = bigint(value, sign);
 }
 
-bigint::bigint (uint64_t value, int sign) {
+bigint::bigint(uint64_t value, int sign) {
   if (value == 0 || sign == 0) {
     *this = ZERO;
   } else {
@@ -42,7 +42,7 @@ bigint::bigint (uint64_t value, int sign) {
   }
 }
 
-void bigint::remove_leading_zeros () {
+void bigint::remove_leading_zeros() {
   while (digits.size() > 0 and digits[digits.size() - 1] == 0) {
     digits.pop_back();
   }
@@ -50,11 +50,11 @@ void bigint::remove_leading_zeros () {
     sign = 0;
 }
 
-uint8_t& bigint::operator[] (size_t idx) {
+uint8_t& bigint::operator[](size_t idx) {
   return this->digits[idx];
 } 
 
-const uint8_t& bigint::operator[] (size_t idx) const {
+const uint8_t& bigint::operator[](size_t idx) const {
   return this->digits[idx];
 }
 
@@ -112,13 +112,12 @@ bigint& bigint::operator+=(const bigint& rhs) {
     return lhs;
   }
 
-  
   size_t max_size = std::max(lhs.size(), rhs.size());
   size_t min_size = std::min(lhs.size(), rhs.size());
   uint8_t carry = 0;
   size_t i;
-  std::vector<uint8_t> result(max_size + 1, 0);
-
+  std::vector<uint8_t> result(max_size + 1, 0); 
+  
   for (i = 0; i < min_size; ++i) {
     result[i] = (lhs[i] + rhs[i] + carry) % radix;
     carry = lhs[i] + rhs[i] + carry >= radix ? 1 : 0;
@@ -135,8 +134,15 @@ bigint& bigint::operator+=(const bigint& rhs) {
   return lhs;
 }
 
+bigint abs(bigint x) {
+  if (x == ZERO)
+    return x;
+  x.sign = 1;
+  return x;
+}
+
 bigint& bigint::operator-=(const bigint& rhs) {
-  bigint& lhs = *this;
+bigint& lhs = *this;
   if (lhs.sign == 0) {
     lhs = -rhs;
     return lhs; 
@@ -150,15 +156,17 @@ bigint& bigint::operator-=(const bigint& rhs) {
     return lhs; 
   }
   bigint minuend, subtrahend; 
-  bool both_operands_positive = lhs.sign == 1 and rhs.sign == 1;
-  bool both_operands_negative = lhs.sign == -1 and rhs.sign == -1;
-  bool lhs_greater_rhs = lhs > rhs;
+  int8_t sign = 1;
+  if (lhs.sign == -1 and rhs.sign == -1)
+    sign = -sign;
+  bool lhs_greater_rhs = abs(lhs) > abs(rhs);
   if (lhs_greater_rhs) {
     minuend = lhs;
     subtrahend = rhs;
   } else {
     minuend = rhs;
     subtrahend = lhs;
+    sign = -sign;
   }
   std::vector<uint8_t> result(minuend.size(), 0); 
   size_t idx;
@@ -182,12 +190,7 @@ bigint& bigint::operator-=(const bigint& rhs) {
     }
     assert(result[idx] < radix);
   }
-  uint8_t result_sign = minuend.sign;
-  if (lhs_greater_rhs and both_operands_negative) 
-    result_sign = -sign;
-  if (!lhs_greater_rhs and both_operands_positive)
-    result_sign = -sign;
-  lhs = bigint(result, result_sign);
+  lhs = bigint(result, sign);
   return lhs;
 }
 
@@ -270,6 +273,8 @@ bigint& bigint::operator%=(const bigint& rhs) {
 }
 
 uint16_t div(bigint lhs, bigint rhs, bigint& quotient, bigint& remainder) {
+  int8_t sign = lhs.sign * rhs.sign;
+  lhs.sign = rhs.sign = 1;
   if (lhs.sign == 0) {
     quotient = ZERO;
     remainder = ZERO;
@@ -282,56 +287,58 @@ uint16_t div(bigint lhs, bigint rhs, bigint& quotient, bigint& remainder) {
   }
   if (lhs == rhs) {
     quotient = ONE;
+    quotient.sign = sign;
     remainder = ZERO;
     return 1;
   }
-  int8_t sign = lhs.sign * rhs.sign;
   if (rhs.size() == 1 and lhs.size() == 1) {
    quotient = bigint(lhs[0] / rhs[0], sign); 
    remainder = bigint(lhs[0] %  rhs[0], sign);
    return 1;
   }
   if (rhs.size() == 1) {
-    short_div(lhs, rhs, quotient, remainder);
+    short_div(lhs, rhs, quotient, remainder, sign);
     return 1;
   }
-  uint16_t normalization_factor = 1;
   size_t lhs_size_pre_norm = lhs.size();
-  if (rhs[rhs.size() - 1] < (radix >> 1)) {
-    normalization_factor = radix / (rhs[rhs.size() - 1] + 1);
+  uint8_t normalization_factor = radix / (rhs[rhs.size() - 1] + 1);
+  if (normalization_factor > 1) {
     rhs *= normalization_factor;
     lhs *= normalization_factor;
   }
-  if (normalization_factor == 1 or (lhs.size() == rhs.size()))
-    lhs.digits.push_back(0);
+  size_t m = lhs.size();
   size_t n = rhs.size();
-  size_t m = lhs.size() - rhs.size() - 1;
-  uint16_t divisor = rhs[n-1];
+  uint16_t divisor = rhs[n - 1];
+  if (lhs[m - 1] >= divisor) {
+    lhs.digits.push_back(0);
+    ++m;
+  }
   uint16_t dividend;
   uint8_t q, r;
-  std::vector<uint8_t> result(m + 1, 0);
-  for (size_t j = m; j != -1; --j) {
-    dividend = ((uint16_t)lhs[n + j] * radix) + (uint16_t)lhs[n + j - 1];
+  std::vector<uint8_t> result(m - n, 0);
+  size_t k = m - n - 1;
+  for (size_t j = 1; j <= m - 1; ++j) {
+    dividend = ((uint16_t)lhs[m - j] * radix) + (uint16_t)lhs[m - j - 1];
     q = dividend / divisor;
     r = dividend % divisor;
-    while (q >= radix or ((q * rhs[n-2]) > ((radix * r) + lhs[n + j - 2]))) {
+    while (q >= radix or ((q * rhs[n - 2]) > r * radix + lhs[m - j - 2])) {
        q -= 1;
-       r += rhs[n-1];
+       r += divisor; 
     }
-    lhs -= (q * rhs) << j; 
+    lhs -= (q * rhs) << k; 
     if (lhs.sign == -1) {
       --q;
-      lhs += rhs;
+      lhs += (rhs << k);
     }
-    result[j] = q;
-    if (lhs == ZERO) break;
+    result[k] = q;
+    --k;
   }
   quotient = bigint(result, sign);
   remainder = lhs;
   return normalization_factor;
 }
 
-void short_div(bigint& lhs, bigint& rhs, bigint& quotient, bigint& remainder) {
+void short_div(bigint& lhs, bigint& rhs, bigint& quotient, bigint& remainder, int8_t sign) {
   assert(rhs.size() == 1);
   uint8_t divisor = rhs[0];
   size_t n = lhs.size();
@@ -343,8 +350,8 @@ void short_div(bigint& lhs, bigint& rhs, bigint& quotient, bigint& remainder) {
     result[j] = cur / divisor;
     r = cur % divisor; 
   }
-  quotient = bigint(result, lhs.sign * rhs.sign);
-  remainder = bigint(r, lhs.sign * rhs.sign);
+  quotient = bigint(result, sign);
+  remainder = bigint(r, sign);
 }
 
 bool operator==(const bigint& lhs, const bigint& rhs) {
