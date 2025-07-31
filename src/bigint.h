@@ -1,4 +1,5 @@
 #include <vector>
+#include <string>
 #include <compare>
 #include <cstdint>
 #include <iostream>
@@ -6,25 +7,27 @@
 #include <cassert>
 #include <iomanip>
 
-#define radix (uint8_t)100
+#define radix (uint32_t)100000000
 
 struct bigint {
-  std::vector<uint8_t> digits;
+  std::vector<uint32_t> digits;
   int8_t sign; // 1 = positive, 0 = zero, -1 = negative
 
   bigint();
 
-  bigint(const std::vector<uint8_t>&, int sign);
+  bigint(const std::vector<uint32_t>&, int sign);
 
   bigint(int64_t value);
 
   bigint(uint64_t value, int sign);
+
+  bigint(std::string);
  
   void remove_leading_zeros (); 
 
-  uint8_t& operator[](size_t idx);
+  uint32_t& operator[](size_t idx);
 
-  const uint8_t& operator[](size_t idx) const;
+  const uint32_t& operator[](size_t idx) const;
 
   size_t size() const;
 
@@ -68,7 +71,7 @@ std::ostream& operator<<(std::ostream& os, const bigint& rhs);
 
 void split(const bigint& x, size_t n, bigint& x_lo, bigint& x_hi); 
 
-uint16_t div(bigint lhs, bigint rhs, bigint& quotient, bigint& remainder);
+uint64_t div(bigint lhs, bigint rhs, bigint& quotient, bigint& remainder);
 
 bigint abs(bigint x);
 

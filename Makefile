@@ -1,5 +1,8 @@
+CXX_FLAGS=-std=c++20 -g -Wall -Werror -Wpedantic -o
+CXX=clang++
 
-test: src/bigint.cpp src/test.cpp 
-	clang++ -std=c++23 -g -o test src/test.cpp src/bigint.cpp
+main: src/main.cpp src/bigint.cpp
+	$(CXX) $(CXX_FLAGS) $@ $^ 
+
 clean:
-	rm -r test bigint *.dSYM
+	rm -r test bigint *.dSYM main
